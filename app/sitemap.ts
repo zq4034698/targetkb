@@ -21,6 +21,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/convert-image-to-webp`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/convert-jpg-to-png`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/crop-image-to-square`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
+    { url: `${base}/compress-image-for-email`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
+    { url: `${base}/compress-image-for-wordpress`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
+    { url: `${base}/compress-image-for-job-application`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
+    { url: `${base}/compress-image-for-online-form`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.9 },
     { url: `${base}/privacy`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
     { url: `${base}/terms`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
   ];
