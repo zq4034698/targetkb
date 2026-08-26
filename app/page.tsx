@@ -32,10 +32,14 @@ export default function Home() {
 
   useEffect(() => {
     document.documentElement.lang = language;
-    const requestedTarget = new URLSearchParams(window.location.search).get('target');
+    const search = new URLSearchParams(window.location.search);
+    const requestedTarget = search.get('target');
     if (requestedTarget === '50' || requestedTarget === '100' || requestedTarget === '200' || requestedTarget === '500') { setTarget(requestedTarget); setUnit('KB'); }
     if (requestedTarget === '1mb') { setTarget('1'); setUnit('MB'); }
-    if (new URLSearchParams(window.location.search).get('resize') === '1') setResizeEnabled(true);
+    const requestedWidth = search.get('width'); const requestedHeight = search.get('height');
+    if (search.get('resize') === '1' || requestedWidth || requestedHeight) setResizeEnabled(true);
+    if (requestedWidth && /^\d+$/.test(requestedWidth)) setResizeWidth(requestedWidth);
+    if (requestedHeight && /^\d+$/.test(requestedHeight)) setResizeHeight(requestedHeight);
   }, [language]);
 
   async function compressOne(file: File, targetBytes: number): Promise<Result> {
@@ -109,6 +113,7 @@ export default function Home() {
         <section className="resize-panel" aria-label="Resize image options">
           <label className="resize-toggle"><input type="checkbox" checked={resizeEnabled} onChange={(event) => setResizeEnabled(event.target.checked)} /><span><b>{language === 'en' ? 'Resize before compressing' : language === 'zh-CN' ? '压缩前调整尺寸' : '壓縮前調整尺寸'}</b><small>{language === 'en' ? 'Optional dimensions in pixels' : language === 'zh-CN' ? '可选：按像素设置尺寸' : '選填：依像素設定尺寸'}</small></span></label>
           {resizeEnabled && <div className="resize-fields"><label>W <input aria-label="Resize width" inputMode="numeric" placeholder="1200" value={resizeWidth} onChange={(event) => setResizeWidth(event.target.value.replace(/\D/g, ''))} /> px</label><span>×</span><label>H <input aria-label="Resize height" inputMode="numeric" placeholder="800" value={resizeHeight} onChange={(event) => setResizeHeight(event.target.value.replace(/\D/g, ''))} /> px</label><label className="aspect-lock"><input type="checkbox" checked={lockAspect} onChange={(event) => setLockAspect(event.target.checked)} /> {language === 'en' ? 'Keep aspect ratio' : language === 'zh-CN' ? '保持比例' : '保持比例'}</label></div>}
+          {resizeEnabled && <div className="resize-presets"><span>{language === 'en' ? 'Quick presets' : language === 'zh-CN' ? '常用预设' : '常用預設'}</span><button onClick={() => { setResizeWidth('600'); setResizeHeight('600'); setTarget('200'); setUnit('KB'); }}>Passport / Visa · 600 × 600</button><button onClick={() => { setResizeWidth('400'); setResizeHeight('400'); setTarget('100'); setUnit('KB'); }}>Job profile · 400 × 400</button><button onClick={() => { setResizeWidth('1200'); setResizeHeight('800'); setTarget('500'); setUnit('KB'); }}>Website · 1200 × 800</button></div>}
         </section>
         <div className="popular-row"><span>{t.popular}</span>{presets.map((preset) => <button key={preset} onClick={() => selectPreset(String(preset), 'KB')}>{preset}KB</button>)}<button onClick={() => selectPreset('1', 'MB')}>1MB</button></div>
         {error && <p className="message error">{error}</p>}
