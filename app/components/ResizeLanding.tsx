@@ -7,7 +7,9 @@ type ResizeLandingProps = {
 };
 
 export default function ResizeLanding({ title, description, focus, examples, toolHref = '/?resize=1' }: ResizeLandingProps) {
+  const faqSchema = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: [{ '@type': 'Question', name: 'Can I resize without distorting the image?', acceptedAnswer: { '@type': 'Answer', text: 'Keep aspect ratio enabled and enter either a width or a height.' } }, { '@type': 'Question', name: 'Are my images uploaded to a server?', acceptedAnswer: { '@type': 'Answer', text: 'No. Image processing happens locally in your browser whenever possible.' } }] };
   return <main className="seo-page">
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
     <nav className="nav wrap"><a className="brand" href="/"><span className="brand-mark">T</span>TargetKB</a><a className="nav-button" href={toolHref}>Resize an image</a></nav>
     <section className="seo-hero"><p className="eyebrow"><span /> Browser-based image resize tool</p><h1>{title}</h1><p>{description}</p><a className="seo-cta" href={toolHref}>Resize and compress image <span>→</span></a></section>
     <section className="seo-card-grid">{examples.map((example) => <article className="seo-card" key={example}><strong>{example}</strong><p>Set the pixel dimensions, keep the original proportions if you want, then choose a final KB or MB upload limit.</p></article>)}</section>
