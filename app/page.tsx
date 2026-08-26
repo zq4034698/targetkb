@@ -29,13 +29,19 @@ export default function Home() {
   useEffect(() => {
     document.documentElement.lang = language;
     const requestedTarget = new URLSearchParams(window.location.search).get('target');
-    if (requestedTarget === '100' || requestedTarget === '200') { setTarget(requestedTarget); setUnit('KB'); }
+    if (requestedTarget === '50' || requestedTarget === '100' || requestedTarget === '200' || requestedTarget === '500') { setTarget(requestedTarget); setUnit('KB'); }
     if (requestedTarget === '1mb') { setTarget('1'); setUnit('MB'); }
   }, [language]);
 
   async function compressOne(file: File, targetBytes: number): Promise<Result> {
     if (!file.type.startsWith('image/')) throw new Error(t.errorFile);
-    const sourceUrl = URL.createObjectURL(file);
+    let source: Blob = file;
+    if (file.type === 'image/heic' || file.type === 'image/heif' || /\.(heic|heif)$/i.test(file.name)) {
+      const heic2any = (await import('heic2any')).default;
+      const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+      source = Array.isArray(converted) ? converted[0] : converted;
+    }
+    const sourceUrl = URL.createObjectURL(source);
     try {
       const image = await new Promise<HTMLImageElement>((resolve, reject) => { const element = new Image(); element.onload = () => resolve(element); element.onerror = () => reject(new Error(t.errorRead)); element.src = sourceUrl; });
       let output: Blob | null = null; let outputWidth = image.naturalWidth; let outputHeight = image.naturalHeight; let scale = 1;
