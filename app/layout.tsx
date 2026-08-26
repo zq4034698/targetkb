@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import AnalyticsConsent from './components/AnalyticsConsent';
 import './globals.css';
 
 const geistSans = Geist({
@@ -37,6 +38,7 @@ export default function RootLayout({
       >
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ '@context': 'https://schema.org', '@type': 'WebApplication', name: 'TargetKB', url: 'https://targetkb.com/', applicationCategory: 'UtilitiesApplication', operatingSystem: 'Any', browserRequirements: 'Requires a modern web browser', description: 'Compress, resize, crop and convert images in your browser.', offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' } }) }} />
         {children}
+        <AnalyticsConsent />
       </body>
     </html>
   );
