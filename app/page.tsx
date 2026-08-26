@@ -82,6 +82,6 @@ export default function Home() {
     <section className="proof wrap" id="how">{t.steps.map((step, index) => <div key={step[0]}><span className="number">0{index + 1}</span><h2>{step[0]}</h2><p>{step[1]}</p></div>)}</section>
     <section className="size-section" id="popular"><div className="wrap"><div className="section-heading"><div><span className="eyebrow"><span /> {t.built}</span><h2>{t.popularTitle}</h2></div><p>{t.popularIntro}</p></div><div className="size-grid">{['20KB', '50KB', '100KB', '200KB', '500KB', '1MB'].map((size, index) => <button className="size-card" key={size} onClick={() => { selectPreset(size.replace('KB', '').replace('MB', ''), size.includes('MB') ? 'MB' : 'KB'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><strong>{size}</strong><span>{t.uses[index]}</span><i>↗</i></button>)}</div></div></section>
     <section className="privacy wrap" id="privacy"><div className="lock">⌁</div><div><span className="eyebrow"><span /> {t.private}</span><h2>{t.privacyTitle}</h2><p>{t.privacyText}</p></div><div className="stat"><strong>0</strong><span>{t.stored}</span></div></section>
-    <footer className="footer wrap"><a className="brand" href="#top"><span className="brand-mark">T</span>TargetKB</a><p>{t.footer}</p><span>© 2026 TargetKB</span></footer>
+    <footer className="footer wrap"><a className="brand" href="#top"><span className="brand-mark">T</span>TargetKB</a><p>{t.footer}</p><div className="footer-links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div><span>© 2026 TargetKB</span></footer>
   </main>;
 }
