@@ -17,6 +17,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/resize-passport-photo`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.9 },
     { url: `${base}/resize-photo-for-visa-application`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.9 },
     { url: `${base}/resize-photo-for-job-application`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
+    { url: `${base}/convert-image-to-jpg`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${base}/convert-image-to-webp`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
+    { url: `${base}/convert-jpg-to-png`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${base}/crop-image-to-square`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/privacy`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
     { url: `${base}/terms`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
   ];

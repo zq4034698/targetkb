@@ -2,7 +2,7 @@
 
 import { ChangeEvent, DragEvent, useEffect, useRef, useState } from 'react';
 
-type Result = { url: string; name: string; originalBytes: number; compressedBytes: number; width: number; height: number };
+type Result = { url: string; name: string; originalBytes: number; compressedBytes: number; width: number; height: number; format: string };
 const presets = [20, 50, 100, 200, 500];
 const displayBytes = (value: number) => value < 1024 * 1024 ? `${Math.max(1, Math.round(value / 1024))} KB` : `${(value / (1024 * 1024)).toFixed(2)} MB`;
 const cleanName = (name: string) => name.replace(/\.[^/.]+$/, '') || 'compressed-image';
@@ -23,6 +23,8 @@ export default function Home() {
   const [resizeWidth, setResizeWidth] = useState('');
   const [resizeHeight, setResizeHeight] = useState('');
   const [lockAspect, setLockAspect] = useState(true);
+  const [outputFormat, setOutputFormat] = useState<'jpg' | 'png' | 'webp'>('jpg');
+  const [squareCrop, setSquareCrop] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
@@ -40,6 +42,9 @@ export default function Home() {
     if (search.get('resize') === '1' || requestedWidth || requestedHeight) setResizeEnabled(true);
     if (requestedWidth && /^\d+$/.test(requestedWidth)) setResizeWidth(requestedWidth);
     if (requestedHeight && /^\d+$/.test(requestedHeight)) setResizeHeight(requestedHeight);
+    const requestedFormat = search.get('format');
+    if (requestedFormat === 'jpg' || requestedFormat === 'png' || requestedFormat === 'webp') setOutputFormat(requestedFormat);
+    if (search.get('crop') === 'square') setSquareCrop(true);
   }, [language]);
 
   async function compressOne(file: File, targetBytes: number): Promise<Result> {
@@ -69,23 +74,38 @@ export default function Home() {
           baseHeight = requestedHeight > 0 ? requestedHeight : image.naturalHeight;
         }
       }
+      if (squareCrop) {
+        const side = resizeEnabled && (requestedWidth > 0 || requestedHeight > 0) ? Math.max(1, Math.min(baseWidth, baseHeight)) : Math.min(image.naturalWidth, image.naturalHeight);
+        baseWidth = side; baseHeight = side;
+      }
+      const mime = outputFormat === 'png' ? 'image/png' : outputFormat === 'webp' ? 'image/webp' : 'image/jpeg';
+      const cropSize = Math.min(image.naturalWidth, image.naturalHeight);
+      const cropX = Math.round((image.naturalWidth - cropSize) / 2);
+      const cropY = Math.round((image.naturalHeight - cropSize) / 2);
       let output: Blob | null = null; let outputWidth = baseWidth; let outputHeight = baseHeight; let scale = 1;
       for (let pass = 0; pass < 8 && !output; pass += 1) {
         const width = Math.max(1, Math.round(baseWidth * scale)); const height = Math.max(1, Math.round(baseHeight * scale));
         const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
         const context = canvas.getContext('2d', { alpha: false }); if (!context) throw new Error(t.errorBrowser);
-        context.fillStyle = '#fff'; context.fillRect(0, 0, width, height); context.drawImage(image, 0, 0, width, height);
-        let low = 0.08; let high = 0.95; let candidate: Blob | null = null;
-        for (let attempt = 0; attempt < 9; attempt += 1) {
-          const quality = (low + high) / 2;
-          const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
-          if (!blob) continue;
-          if (blob.size <= targetBytes) { candidate = blob; low = quality; } else high = quality;
+        if (outputFormat === 'jpg') { context.fillStyle = '#fff'; context.fillRect(0, 0, width, height); }
+        if (squareCrop) context.drawImage(image, cropX, cropY, cropSize, cropSize, 0, 0, width, height); else context.drawImage(image, 0, 0, width, height);
+        let candidate: Blob | null = null;
+        if (outputFormat === 'png') {
+          const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mime));
+          if (blob && blob.size <= targetBytes) candidate = blob;
+        } else {
+          let low = 0.08; let high = 0.95;
+          for (let attempt = 0; attempt < 9; attempt += 1) {
+            const quality = (low + high) / 2;
+            const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mime, quality));
+            if (!blob) continue;
+            if (blob.size <= targetBytes) { candidate = blob; low = quality; } else high = quality;
+          }
         }
         if (candidate) { output = candidate; outputWidth = width; outputHeight = height; } else scale *= 0.72;
       }
       if (!output) throw new Error(t.errorReach);
-      return { url: URL.createObjectURL(output), name: `${cleanName(file.name)}-${target}${unit.toLowerCase()}.jpg`, originalBytes: file.size, compressedBytes: output.size, width: outputWidth, height: outputHeight };
+      return { url: URL.createObjectURL(output), name: `${cleanName(file.name)}-${target}${unit.toLowerCase()}.${outputFormat}`, originalBytes: file.size, compressedBytes: output.size, width: outputWidth, height: outputHeight, format: outputFormat.toUpperCase() };
     } finally { URL.revokeObjectURL(sourceUrl); }
   }
 
@@ -115,9 +135,10 @@ export default function Home() {
           {resizeEnabled && <div className="resize-fields"><label>W <input aria-label="Resize width" inputMode="numeric" placeholder="1200" value={resizeWidth} onChange={(event) => setResizeWidth(event.target.value.replace(/\D/g, ''))} /> px</label><span>×</span><label>H <input aria-label="Resize height" inputMode="numeric" placeholder="800" value={resizeHeight} onChange={(event) => setResizeHeight(event.target.value.replace(/\D/g, ''))} /> px</label><label className="aspect-lock"><input type="checkbox" checked={lockAspect} onChange={(event) => setLockAspect(event.target.checked)} /> {language === 'en' ? 'Keep aspect ratio' : language === 'zh-CN' ? '保持比例' : '保持比例'}</label></div>}
           {resizeEnabled && <div className="resize-presets"><span>{language === 'en' ? 'Quick presets' : language === 'zh-CN' ? '常用预设' : '常用預設'}</span><button onClick={() => { setResizeWidth('600'); setResizeHeight('600'); setTarget('200'); setUnit('KB'); }}>Passport / Visa · 600 × 600</button><button onClick={() => { setResizeWidth('400'); setResizeHeight('400'); setTarget('100'); setUnit('KB'); }}>Job profile · 400 × 400</button><button onClick={() => { setResizeWidth('1200'); setResizeHeight('800'); setTarget('500'); setUnit('KB'); }}>Website · 1200 × 800</button></div>}
         </section>
+        <section className="transform-panel"><label><span>{language === 'en' ? 'Output format' : language === 'zh-CN' ? '输出格式' : '輸出格式'}</span><select aria-label="Output format" value={outputFormat} onChange={(event) => setOutputFormat(event.target.value as 'jpg' | 'png' | 'webp')}><option value="jpg">JPG — best for small files</option><option value="webp">WebP — modern web format</option><option value="png">PNG — lossless, may be larger</option></select></label><label className="crop-toggle"><input type="checkbox" checked={squareCrop} onChange={(event) => setSquareCrop(event.target.checked)} /> {language === 'en' ? 'Center crop to square' : language === 'zh-CN' ? '居中裁剪为方形' : '置中裁剪為方形'}</label></section>
         <div className="popular-row"><span>{t.popular}</span>{presets.map((preset) => <button key={preset} onClick={() => selectPreset(String(preset), 'KB')}>{preset}KB</button>)}<button onClick={() => selectPreset('1', 'MB')}>1MB</button></div>
         {error && <p className="message error">{error}</p>}
-        {results.length > 0 && <section className="batch-results"><div className="batch-title"><div className="success-icon">✓</div><div><span className="field-label">{t.ready}</span><strong>{results.length} / 10 {language === 'en' ? 'images compressed' : language === 'zh-CN' ? '张图片已压缩' : '張圖片已壓縮'}</strong></div></div>{results.map((result) => <div className="result" key={result.url}><div><h2>{displayBytes(result.originalBytes)} <i>→</i> {displayBytes(result.compressedBytes)}</h2><p>{result.width} × {result.height}px · {t.optimized}</p></div><a className="download" href={result.url} download={result.name}>{t.download} <span>↓</span></a></div>)}</section>}
+        {results.length > 0 && <section className="batch-results"><div className="batch-title"><div className="success-icon">✓</div><div><span className="field-label">{t.ready}</span><strong>{results.length} / 10 {language === 'en' ? 'images processed' : language === 'zh-CN' ? '张图片已处理' : '張圖片已處理'}</strong></div></div>{results.map((result) => <div className="result" key={result.url}><div><h2>{displayBytes(result.originalBytes)} <i>→</i> {displayBytes(result.compressedBytes)}</h2><p>{result.width} × {result.height}px · {result.format}</p></div><a className="download" href={result.url} download={result.name}>{t.download} <span>↓</span></a></div>)}</section>}
       </section><p className="privacy-note">{t.noSignup}</p>
     </section>
     <section className="proof wrap" id="how">{t.steps.map((step, index) => <div key={step[0]}><span className="number">0{index + 1}</span><h2>{step[0]}</h2><p>{step[1]}</p></div>)}</section>
