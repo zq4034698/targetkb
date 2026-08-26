@@ -19,6 +19,10 @@ export default function Home() {
   const [language, setLanguage] = useState<Language>('en');
   const [target, setTarget] = useState('100');
   const [unit, setUnit] = useState<'KB' | 'MB'>('KB');
+  const [resizeEnabled, setResizeEnabled] = useState(false);
+  const [resizeWidth, setResizeWidth] = useState('');
+  const [resizeHeight, setResizeHeight] = useState('');
+  const [lockAspect, setLockAspect] = useState(true);
   const [dragging, setDragging] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
@@ -31,6 +35,7 @@ export default function Home() {
     const requestedTarget = new URLSearchParams(window.location.search).get('target');
     if (requestedTarget === '50' || requestedTarget === '100' || requestedTarget === '200' || requestedTarget === '500') { setTarget(requestedTarget); setUnit('KB'); }
     if (requestedTarget === '1mb') { setTarget('1'); setUnit('MB'); }
+    if (new URLSearchParams(window.location.search).get('resize') === '1') setResizeEnabled(true);
   }, [language]);
 
   async function compressOne(file: File, targetBytes: number): Promise<Result> {
@@ -44,9 +49,25 @@ export default function Home() {
     const sourceUrl = URL.createObjectURL(source);
     try {
       const image = await new Promise<HTMLImageElement>((resolve, reject) => { const element = new Image(); element.onload = () => resolve(element); element.onerror = () => reject(new Error(t.errorRead)); element.src = sourceUrl; });
-      let output: Blob | null = null; let outputWidth = image.naturalWidth; let outputHeight = image.naturalHeight; let scale = 1;
+      const requestedWidth = Math.round(Number(resizeWidth));
+      const requestedHeight = Math.round(Number(resizeHeight));
+      let baseWidth = image.naturalWidth;
+      let baseHeight = image.naturalHeight;
+      if (resizeEnabled && (requestedWidth > 0 || requestedHeight > 0)) {
+        if (lockAspect) {
+          const scaleByWidth = requestedWidth > 0 ? requestedWidth / image.naturalWidth : Number.POSITIVE_INFINITY;
+          const scaleByHeight = requestedHeight > 0 ? requestedHeight / image.naturalHeight : Number.POSITIVE_INFINITY;
+          const requestedScale = Math.min(scaleByWidth, scaleByHeight);
+          baseWidth = Math.max(1, Math.round(image.naturalWidth * requestedScale));
+          baseHeight = Math.max(1, Math.round(image.naturalHeight * requestedScale));
+        } else {
+          baseWidth = requestedWidth > 0 ? requestedWidth : image.naturalWidth;
+          baseHeight = requestedHeight > 0 ? requestedHeight : image.naturalHeight;
+        }
+      }
+      let output: Blob | null = null; let outputWidth = baseWidth; let outputHeight = baseHeight; let scale = 1;
       for (let pass = 0; pass < 8 && !output; pass += 1) {
-        const width = Math.max(1, Math.round(image.naturalWidth * scale)); const height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const width = Math.max(1, Math.round(baseWidth * scale)); const height = Math.max(1, Math.round(baseHeight * scale));
         const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
         const context = canvas.getContext('2d', { alpha: false }); if (!context) throw new Error(t.errorBrowser);
         context.fillStyle = '#fff'; context.fillRect(0, 0, width, height); context.drawImage(image, 0, 0, width, height);
@@ -85,6 +106,10 @@ export default function Home() {
       <section className="compressor" aria-label="Image compressor"><div className="target-row"><div><span className="field-label">{t.targetLabel}</span><strong>{t.targetTitle}</strong></div><label className="target-input"><input aria-label="Target size" value={target} inputMode="decimal" onChange={(event) => setTarget(event.target.value)} /><select aria-label="Size unit" value={unit} onChange={(event) => setUnit(event.target.value as 'KB' | 'MB')}><option>KB</option><option>MB</option></select></label></div>
         <button className={`dropzone ${dragging ? 'dragging' : ''}`} onClick={() => inputRef.current?.click()} onDrop={onDrop} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}><span className="upload-icon">↑</span><span><b>{working ? t.working : t.drop}</b><small>{working ? t.local : `${t.browse} · ${maxImagesText}`}</small></span></button>
         <input ref={inputRef} className="hidden-input" type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={onPick} />
+        <section className="resize-panel" aria-label="Resize image options">
+          <label className="resize-toggle"><input type="checkbox" checked={resizeEnabled} onChange={(event) => setResizeEnabled(event.target.checked)} /><span><b>{language === 'en' ? 'Resize before compressing' : language === 'zh-CN' ? '压缩前调整尺寸' : '壓縮前調整尺寸'}</b><small>{language === 'en' ? 'Optional dimensions in pixels' : language === 'zh-CN' ? '可选：按像素设置尺寸' : '選填：依像素設定尺寸'}</small></span></label>
+          {resizeEnabled && <div className="resize-fields"><label>W <input aria-label="Resize width" inputMode="numeric" placeholder="1200" value={resizeWidth} onChange={(event) => setResizeWidth(event.target.value.replace(/\D/g, ''))} /> px</label><span>×</span><label>H <input aria-label="Resize height" inputMode="numeric" placeholder="800" value={resizeHeight} onChange={(event) => setResizeHeight(event.target.value.replace(/\D/g, ''))} /> px</label><label className="aspect-lock"><input type="checkbox" checked={lockAspect} onChange={(event) => setLockAspect(event.target.checked)} /> {language === 'en' ? 'Keep aspect ratio' : language === 'zh-CN' ? '保持比例' : '保持比例'}</label></div>}
+        </section>
         <div className="popular-row"><span>{t.popular}</span>{presets.map((preset) => <button key={preset} onClick={() => selectPreset(String(preset), 'KB')}>{preset}KB</button>)}<button onClick={() => selectPreset('1', 'MB')}>1MB</button></div>
         {error && <p className="message error">{error}</p>}
         {results.length > 0 && <section className="batch-results"><div className="batch-title"><div className="success-icon">✓</div><div><span className="field-label">{t.ready}</span><strong>{results.length} / 10 {language === 'en' ? 'images compressed' : language === 'zh-CN' ? '张图片已压缩' : '張圖片已壓縮'}</strong></div></div>{results.map((result) => <div className="result" key={result.url}><div><h2>{displayBytes(result.originalBytes)} <i>→</i> {displayBytes(result.compressedBytes)}</h2><p>{result.width} × {result.height}px · {t.optimized}</p></div><a className="download" href={result.url} download={result.name}>{t.download} <span>↓</span></a></div>)}</section>}

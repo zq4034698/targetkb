@@ -10,6 +10,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/compress-image-to-500kb`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
     { url: `${base}/compress-image-to-1mb`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/convert-heic-to-jpg`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
+    { url: `${base}/resize-image`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${base}/resize-image-for-website`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${base}/resize-image-for-wordpress`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${base}/reduce-image-size-for-online-form`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/privacy`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
     { url: `${base}/terms`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
   ];
