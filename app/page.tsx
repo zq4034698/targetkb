@@ -26,7 +26,12 @@ export default function Home() {
   const t = copy[language];
   const maxImagesText = language === 'en' ? 'Max 10 images' : language === 'zh-CN' ? '一次最多 10 张图片' : '一次最多 10 張圖片';
 
-  useEffect(() => { document.documentElement.lang = language; }, [language]);
+  useEffect(() => {
+    document.documentElement.lang = language;
+    const requestedTarget = new URLSearchParams(window.location.search).get('target');
+    if (requestedTarget === '100' || requestedTarget === '200') { setTarget(requestedTarget); setUnit('KB'); }
+    if (requestedTarget === '1mb') { setTarget('1'); setUnit('MB'); }
+  }, [language]);
 
   async function compressOne(file: File, targetBytes: number): Promise<Result> {
     if (!file.type.startsWith('image/')) throw new Error(t.errorFile);
