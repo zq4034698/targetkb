@@ -15,6 +15,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'TargetKB — Compress Images to Any Size',
   description: 'Compress JPG, PNG, WebP and HEIC images to any KB or MB limit. Private, precise, and ready to upload.',
+  metadataBase: new URL('https://targetkb.com'),
+  alternates: { canonical: '/' },
+  openGraph: {
+    title: 'TargetKB — Compress Images to Any Size',
+    description: 'Compress images to any KB or MB limit. Private, precise, and ready to upload.',
+    url: 'https://targetkb.com/',
+    siteName: 'TargetKB',
+    type: 'website',
+  },
 };
 
 export default function RootLayout({
