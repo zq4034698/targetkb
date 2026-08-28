@@ -41,6 +41,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/guides/how-to-compress-image-to-200kb`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.9 },
     { url: `${base}/guides/how-to-compress-images-for-email`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.85 },
     { url: `${base}/guides/how-to-compress-images-for-wordpress`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.85 },
+    { url: `${base}/guides/how-to-compress-photo-for-job-application`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.85 },
     { url: `${base}/guides/reduce-image-size-for-online-forms`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.85 },
     { url: `${base}/guides/best-image-sizes-for-email-websites-discord-and-job-applications`, lastModified: new Date(), changeFrequency: 'monthly', priority: 0.8 },
     { url: `${base}/privacy`, lastModified: new Date(), changeFrequency: 'yearly', priority: 0.3 },
