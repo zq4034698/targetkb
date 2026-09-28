@@ -26,6 +26,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/resize-photo-for-visa-application`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.9 },
     { url: `${base}/resize-photo-for-job-application`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/convert-image-to-jpg`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.9 },
+    { url: `${base}/image-converter`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/convert-png-to-jpg`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/convert-image-to-webp`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.85 },
     { url: `${base}/convert-jpg-to-png`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.8 },
