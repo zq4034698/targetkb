@@ -37,8 +37,8 @@ export default function Home() {
     document.documentElement.lang = language;
     const search = new URLSearchParams(window.location.search);
     const requestedTarget = search.get('target');
-    if (requestedTarget === '50' || requestedTarget === '100' || requestedTarget === '200' || requestedTarget === '500') { setTarget(requestedTarget); setUnit('KB'); }
-    if (requestedTarget === '1mb') { setTarget('1'); setUnit('MB'); }
+    if (requestedTarget && /^\d+(?:\.\d+)?$/.test(requestedTarget) && Number(requestedTarget) >= 1) { setTarget(requestedTarget); setUnit('KB'); }
+    if (requestedTarget && /^\d+(?:\.\d+)?mb$/i.test(requestedTarget) && Number(requestedTarget.slice(0, -2)) > 0) { setTarget(requestedTarget.slice(0, -2)); setUnit('MB'); }
     const requestedWidth = search.get('width'); const requestedHeight = search.get('height');
     if (search.get('resize') === '1' || requestedWidth || requestedHeight) setResizeEnabled(true);
     if (requestedWidth && /^\d+$/.test(requestedWidth)) setResizeWidth(requestedWidth);
