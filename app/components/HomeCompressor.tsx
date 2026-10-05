@@ -1,8 +1,9 @@
 'use client';
 
 import { ChangeEvent, DragEvent, useEffect, useRef, useState } from 'react';
+import { trackToolEvent, type ToolEventParams } from '../lib/toolAnalytics';
 
-type Result = { url: string; name: string; originalBytes: number; compressedBytes: number; width: number; height: number; format: string };
+type Result = { url: string; name: string; originalBytes: number; compressedBytes: number; width: number; height: number; format: string; analytics: ToolEventParams };
 const presets = [20, 50, 100, 150, 200, 500];
 const displayBytes = (value: number) => value < 1024 * 1024 ? `${Math.max(1, Math.round(value / 1024))} KB` : `${(value / (1024 * 1024)).toFixed(2)} MB`;
 const cleanName = (name: string) => name.replace(/\.[^/.]+$/, '') || 'compressed-image';
@@ -14,10 +15,14 @@ const copy = {
 } as const;
 type Language = keyof typeof copy;
 
-export default function Home() {
+type HomeCompressorProps = { embedded?: boolean; initialTarget?: string; toolPage?: 'home' | '100kb' | '200kb' };
+
+export default function Home({ embedded = false, initialTarget = '100', toolPage = 'home' }: HomeCompressorProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const workingRef = useRef(false);
+  const resultUrls = useRef<string[]>([]);
   const [language, setLanguage] = useState<Language>('en');
-  const [target, setTarget] = useState('100');
+  const [target, setTarget] = useState(initialTarget);
   const [unit, setUnit] = useState<'KB' | 'MB'>('KB');
   const [resizeEnabled, setResizeEnabled] = useState(false);
   const [resizeWidth, setResizeWidth] = useState('');
@@ -35,6 +40,9 @@ export default function Home() {
 
   useEffect(() => {
     document.documentElement.lang = language;
+  }, [language]);
+
+  useEffect(() => {
     const search = new URLSearchParams(window.location.search);
     const requestedTarget = search.get('target');
     if (requestedTarget && /^\d+(?:\.\d+)?$/.test(requestedTarget) && Number(requestedTarget) >= 1) { setTarget(requestedTarget); setUnit('KB'); }
@@ -46,19 +54,22 @@ export default function Home() {
     const requestedFormat = search.get('format');
     if (requestedFormat === 'jpg' || requestedFormat === 'png' || requestedFormat === 'webp') setOutputFormat(requestedFormat);
     if (search.get('crop') === 'square') setSquareCrop(true);
-  }, [language]);
+    return () => { resultUrls.current.forEach((url) => URL.revokeObjectURL(url)); };
+  }, []);
 
-  async function compressOne(file: File, targetBytes: number): Promise<Result> {
-    if (!file.type.startsWith('image/')) throw new Error(t.errorFile);
+  async function compressOne(file: File, targetBytes: number, activeTarget: string, activeUnit: 'KB' | 'MB', analytics: ToolEventParams): Promise<Result> {
+    if (!file.type.startsWith('image/')) throw new Error('unsupported_file');
     let source: Blob = file;
     if (file.type === 'image/heic' || file.type === 'image/heif' || /\.(heic|heif)$/i.test(file.name)) {
-      const heic2any = (await import('heic2any')).default;
-      const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
-      source = Array.isArray(converted) ? converted[0] : converted;
+      try {
+        const heic2any = (await import('heic2any')).default;
+        const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+        source = Array.isArray(converted) ? converted[0] : converted;
+      } catch { throw new Error('decode_failed'); }
     }
     const sourceUrl = URL.createObjectURL(source);
     try {
-      const image = await new Promise<HTMLImageElement>((resolve, reject) => { const element = new Image(); element.onload = () => resolve(element); element.onerror = () => reject(new Error(t.errorRead)); element.src = sourceUrl; });
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => { const element = new Image(); element.onload = () => resolve(element); element.onerror = () => reject(new Error('decode_failed')); element.src = sourceUrl; });
       const requestedWidth = Math.round(Number(resizeWidth));
       const requestedHeight = Math.round(Number(resizeHeight));
       let baseWidth = image.naturalWidth;
@@ -87,7 +98,7 @@ export default function Home() {
       for (let pass = 0; pass < 8 && !output; pass += 1) {
         const width = Math.max(1, Math.round(baseWidth * scale)); const height = Math.max(1, Math.round(baseHeight * scale));
         const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
-        const context = canvas.getContext('2d', { alpha: false }); if (!context) throw new Error(t.errorBrowser);
+        const context = canvas.getContext('2d', { alpha: false }); if (!context) throw new Error('canvas_failed');
         if (outputFormat === 'jpg') { context.fillStyle = '#fff'; context.fillRect(0, 0, width, height); }
         if (squareCrop) context.drawImage(image, cropX, cropY, cropSize, cropSize, 0, 0, width, height); else context.drawImage(image, 0, 0, width, height);
         let candidate: Blob | null = null;
@@ -105,23 +116,36 @@ export default function Home() {
         }
         if (candidate) { output = candidate; outputWidth = width; outputHeight = height; } else scale *= 0.72;
       }
-      if (!output) throw new Error(t.errorReach);
-      return { url: URL.createObjectURL(output), name: `${cleanName(file.name)}-${target}${unit.toLowerCase()}.${outputFormat}`, originalBytes: file.size, compressedBytes: output.size, width: outputWidth, height: outputHeight, format: outputFormat.toUpperCase() };
+      if (!output) throw new Error('target_unreachable');
+      const resultUrl = URL.createObjectURL(output);
+      resultUrls.current.push(resultUrl);
+      return { url: resultUrl, name: `${cleanName(file.name)}-${activeTarget}${activeUnit.toLowerCase()}.${outputFormat}`, originalBytes: file.size, compressedBytes: output.size, width: outputWidth, height: outputHeight, format: outputFormat.toUpperCase(), analytics };
     } finally { URL.revokeObjectURL(sourceUrl); }
   }
 
   async function compress(files: File[], override?: { target: string; unit: 'KB' | 'MB' }) {
+    if (workingRef.current || !files.length) return;
+    resultUrls.current.forEach((url) => URL.revokeObjectURL(url)); resultUrls.current = [];
     setError(''); setResults([]);
     const activeTarget = override?.target ?? target;
     const activeUnit = override?.unit ?? unit;
     const targetBytes = Number(activeTarget) * (activeUnit === 'MB' ? 1024 * 1024 : 1024);
-    if (!Number.isFinite(targetBytes) || targetBytes < 1024) { setError(t.errorSize); return; }
-    if (files.length > 10) { setError(language === 'en' ? 'You can upload up to 10 images at a time.' : language === 'zh-CN' ? '一次最多上传 10 张图片。' : '一次最多上傳 10 張圖片。'); return; }
-    setUploadedFiles(files); setWorking(true);
+    const analytics: ToolEventParams = { tool_page: toolPage, target_kb: targetBytes / 1024, output_format: outputFormat, file_count: Math.min(files.length, 10), processed_count: 0, language, trigger: override ? 'retry' : 'upload' };
+    if (!Number.isFinite(targetBytes) || targetBytes < 1024) { setError(t.errorSize); trackToolEvent('compression_error', { ...analytics, error_code: 'invalid_target', processed_count: 0 }); return; }
+    if (files.length > 10) { setError(language === 'en' ? 'You can upload up to 10 images at a time.' : language === 'zh-CN' ? '一次最多上传 10 张图片。' : '一次最多上傳 10 張圖片。'); trackToolEvent('compression_error', { ...analytics, error_code: 'batch_limit', processed_count: 0 }); return; }
+    setUploadedFiles(files); workingRef.current = true; setWorking(true);
+    trackToolEvent('compression_start', analytics);
+    const completed: Result[] = [];
     try {
-      const completed: Result[] = [];
-      for (const file of files) { completed.push(await compressOne(file, targetBytes)); setResults([...completed]); }
-    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Something went wrong. Please try another image.'); } finally { setWorking(false); }
+      for (const file of files) { completed.push(await compressOne(file, targetBytes, activeTarget, activeUnit, analytics)); setResults([...completed]); }
+      trackToolEvent('compression_success', { ...analytics, processed_count: completed.length });
+    } catch (caught) {
+      const code = caught instanceof Error ? caught.message : '';
+      const errorCode = code === 'unsupported_file' || code === 'decode_failed' || code === 'canvas_failed' || code === 'target_unreachable' ? code : 'processing_failed';
+      const message = errorCode === 'unsupported_file' ? t.errorFile : errorCode === 'decode_failed' ? t.errorRead : errorCode === 'target_unreachable' ? t.errorReach : t.errorBrowser;
+      setError(message);
+      trackToolEvent('compression_error', { ...analytics, error_code: errorCode, processed_count: completed.length });
+    } finally { workingRef.current = false; setWorking(false); }
   }
   const onPick = (event: ChangeEvent<HTMLInputElement>) => { const files = Array.from(event.target.files ?? []); if (files.length) void compress(files); event.target.value = ''; };
   const onDrop = (event: DragEvent<HTMLButtonElement>) => { event.preventDefault(); setDragging(false); const files = Array.from(event.dataTransfer.files); if (files.length) void compress(files); };
@@ -131,12 +155,14 @@ export default function Home() {
     if (uploadedFiles.length) void compress(uploadedFiles, { target: nextTarget, unit: nextUnit });
   };
   const originalUploadSize = uploadedFiles.reduce((sum, file) => sum + file.size, 0);
+  const Wrapper = embedded ? 'div' : 'main';
 
-  return <main>
-    <nav className="nav wrap"><a className="brand" href="#top"><span className="brand-mark">T</span>TargetKB</a><div className="nav-links"><a href="#how">{t.navHow}</a><a href="#popular">{t.navPopular}</a><a href="#privacy">{t.navPrivacy}</a></div><select className="language-select" aria-label="Select language" value={language} onChange={(event) => setLanguage(event.target.value as Language)}><option value="en">English</option><option value="zh-CN">简体中文</option><option value="zh-TW">繁體中文</option></select><button className="nav-button" onClick={() => inputRef.current?.click()}>{t.navButton}</button></nav>
-    <section className="hero wrap" id="top"><div className="eyebrow"><span /> {t.eyebrow}</div><h1>{t.titleA}<br /><em>{t.titleB}</em></h1><p className="hero-copy">{t.intro}</p>
+  return <Wrapper>
+    {!embedded && <nav className="nav wrap"><a className="brand" href="#top"><span className="brand-mark">T</span>TargetKB</a><div className="nav-links"><a href="#how">{t.navHow}</a><a href="#popular">{t.navPopular}</a><a href="#privacy">{t.navPrivacy}</a></div><select className="language-select" aria-label="Select language" value={language} onChange={(event) => setLanguage(event.target.value as Language)}><option value="en">English</option><option value="zh-CN">简体中文</option><option value="zh-TW">繁體中文</option></select><button className="nav-button" disabled={working} onClick={() => inputRef.current?.click()}>{t.navButton}</button></nav>}
+    <section className={embedded ? 'inline-compressor' : 'hero wrap'} id={embedded ? 'compressor' : 'top'}>{!embedded && <><div className="eyebrow"><span /> {t.eyebrow}</div><h1>{t.titleA}<br /><em>{t.titleB}</em></h1><p className="hero-copy">{t.intro}</p></>}
+      {embedded && <div className="inline-tool-toolbar"><span>{maxImagesText}</span><select className="language-select" aria-label="Select language" value={language} onChange={(event) => setLanguage(event.target.value as Language)}><option value="en">English</option><option value="zh-CN">简体中文</option><option value="zh-TW">繁體中文</option></select></div>}
       <section className="compressor" aria-label="Image compressor"><div className="target-row"><div><span className="field-label">{t.targetLabel}</span><strong>{t.targetTitle}</strong></div><label className="target-input"><input aria-label="Target size" value={target} inputMode="decimal" onChange={(event) => setTarget(event.target.value)} /><select aria-label="Size unit" value={unit} onChange={(event) => setUnit(event.target.value as 'KB' | 'MB')}><option>KB</option><option>MB</option></select></label></div>
-        <button className={`dropzone ${dragging ? 'dragging' : ''}`} onClick={() => inputRef.current?.click()} onDrop={onDrop} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}><span className="upload-icon">↑</span><span><b>{working ? t.working : t.drop}</b><small>{working ? t.local : `${t.browse} · ${maxImagesText}`}</small></span></button>
+        <button className={`dropzone ${dragging ? 'dragging' : ''}`} disabled={working} onClick={() => inputRef.current?.click()} onDrop={onDrop} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}><span className="upload-icon">↑</span><span><b>{working ? t.working : t.drop}</b><small>{working ? t.local : `${t.browse} · ${maxImagesText}`}</small></span></button>
         <input ref={inputRef} className="hidden-input" type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={onPick} />
         <section className="resize-panel" aria-label="Resize image options">
           <label className="resize-toggle"><input type="checkbox" checked={resizeEnabled} onChange={(event) => setResizeEnabled(event.target.checked)} /><span><b>{language === 'en' ? 'Resize before compressing' : language === 'zh-CN' ? '压缩前调整尺寸' : '壓縮前調整尺寸'}</b><small>{language === 'en' ? 'Optional dimensions in pixels' : language === 'zh-CN' ? '可选：按像素设置尺寸' : '選填：依像素設定尺寸'}</small></span></label>
@@ -145,14 +171,14 @@ export default function Home() {
         </section>
         <section className="transform-panel"><label><span>{language === 'en' ? 'Output format' : language === 'zh-CN' ? '输出格式' : '輸出格式'}</span><select aria-label="Output format" value={outputFormat} onChange={(event) => setOutputFormat(event.target.value as 'jpg' | 'png' | 'webp')}><option value="jpg">JPG — best for small files</option><option value="webp">WebP — modern web format</option><option value="png">PNG — lossless, may be larger</option></select></label><label className="crop-toggle"><input type="checkbox" checked={squareCrop} onChange={(event) => setSquareCrop(event.target.checked)} /> {language === 'en' ? 'Center crop to square' : language === 'zh-CN' ? '居中裁剪为方形' : '置中裁剪為方形'}</label></section>
         <div className="popular-row"><span>{t.popular}</span>{presets.map((preset) => <button key={preset} onClick={() => selectPreset(String(preset), 'KB')}>{preset}KB</button>)}<button onClick={() => selectPreset('1', 'MB')}>1MB</button></div>
-        {error && <p className="message error">{error}</p>}
-        {results.length > 0 && <section className="batch-results"><div className="batch-title"><div className="success-icon">✓</div><div><span className="field-label">{t.ready}</span><strong>{results.length} / 10 {language === 'en' ? 'images processed' : language === 'zh-CN' ? '张图片已处理' : '張圖片已處理'}</strong></div></div><section className="upload-fixer"><span className="field-label">Upload Fixer</span><strong>{language === 'en' ? `Your upload was ${displayBytes(originalUploadSize)}. Need a stricter limit?` : language === 'zh-CN' ? `原图共 ${displayBytes(originalUploadSize)}，需要更严格的限制？` : `原圖共 ${displayBytes(originalUploadSize)}，需要更嚴格的限制？`}</strong><p>{language === 'en' ? 'Apply a common requirement and compress this same batch again.' : language === 'zh-CN' ? '一键套用常见要求，并重新压缩这一批图片。' : '一鍵套用常見要求，並重新壓縮這一批圖片。'}</p><div><button onClick={() => applyFix('100', 'KB')}>{language === 'en' ? 'Online form · 100KB' : '在线表单 · 100KB'}</button><button onClick={() => applyFix('200', 'KB')}>{language === 'en' ? 'Website · 200KB' : '网站 · 200KB'}</button><button onClick={() => applyFix('1', 'MB')}>{language === 'en' ? 'Email · 1MB' : '邮件 · 1MB'}</button></div></section>{results.map((result) => <div className="result" key={result.url}><div><h2>{displayBytes(result.originalBytes)} <i>→</i> {displayBytes(result.compressedBytes)}</h2><p>{result.width} × {result.height}px · {result.format}</p></div><a className="download" href={result.url} download={result.name}>{t.download} <span>↓</span></a></div>)}</section>}
+        {error && <p className="message error" role="alert">{error}</p>}
+        {results.length > 0 && <section className="batch-results"><div className="batch-title"><div className="success-icon">✓</div><div><span className="field-label">{t.ready}</span><strong>{results.length} / {uploadedFiles.length} {language === 'en' ? 'images processed' : language === 'zh-CN' ? '张图片已处理' : '張圖片已處理'}</strong></div></div><section className="upload-fixer"><span className="field-label">Upload Fixer</span><strong>{language === 'en' ? `Your upload was ${displayBytes(originalUploadSize)}. Need a stricter limit?` : language === 'zh-CN' ? `原图共 ${displayBytes(originalUploadSize)}，需要更严格的限制？` : `原圖共 ${displayBytes(originalUploadSize)}，需要更嚴格的限制？`}</strong><p>{language === 'en' ? 'Apply a common requirement and compress this same batch again.' : language === 'zh-CN' ? '一键套用常见要求，并重新压缩这一批图片。' : '一鍵套用常見要求，並重新壓縮這一批圖片。'}</p><div><button disabled={working} onClick={() => applyFix('100', 'KB')}>{language === 'en' ? 'Online form · 100KB' : '在线表单 · 100KB'}</button><button disabled={working} onClick={() => applyFix('200', 'KB')}>{language === 'en' ? 'Website · 200KB' : '网站 · 200KB'}</button><button disabled={working} onClick={() => applyFix('1', 'MB')}>{language === 'en' ? 'Email · 1MB' : '邮件 · 1MB'}</button></div></section>{results.map((result) => <div className="result" key={result.url}><div><h2>{displayBytes(result.originalBytes)} <i>→</i> {displayBytes(result.compressedBytes)}</h2><p>{result.width} × {result.height}px · {result.format}</p></div><a className="download" href={result.url} download={result.name} onClick={() => trackToolEvent('image_download', { ...result.analytics, processed_count: 1 })}>{t.download} <span>↓</span></a></div>)}</section>}
       </section><p className="privacy-note">{t.noSignup}</p>
     </section>
-    <section className="proof wrap" id="how">{t.steps.map((step, index) => <div key={step[0]}><span className="number">0{index + 1}</span><h2>{step[0]}</h2><p>{step[1]}</p></div>)}</section>
+    {!embedded && <><section className="proof wrap" id="how">{t.steps.map((step, index) => <div key={step[0]}><span className="number">0{index + 1}</span><h2>{step[0]}</h2><p>{step[1]}</p></div>)}</section>
     <section className="size-section" id="popular"><div className="wrap"><div className="section-heading"><div><span className="eyebrow"><span /> {t.built}</span><h2>{t.popularTitle}</h2></div><p>{t.popularIntro}</p></div><div className="size-grid">{[{ size: '20KB', href: '/compress-image-to-20kb' }, { size: '50KB', href: '/compress-image-to-50kb' }, { size: '100KB', href: '/compress-image-to-100kb' }, { size: '150KB', href: '/compress-image-to-150kb' }, { size: '200KB', href: '/compress-image-to-200kb' }, { size: '500KB', href: '/compress-image-to-500kb' }, { size: '1MB', href: '/compress-image-to-1mb' }].map((item, index) => <a className="size-card" key={item.size} href={item.href}><strong>{item.size}</strong><span>{t.uses[index] ?? t.uses[t.uses.length - 1]}</span><i>↗</i></a>)}</div></div></section>
     <section className="workflow-section wrap"><div className="section-heading"><div><span className="eyebrow"><span /> {language === 'en' ? 'Start with a real task' : language === 'zh-CN' ? '按真实需求开始' : '按真實需求開始'}</span><h2>{language === 'en' ? 'Popular upload workflows' : language === 'zh-CN' ? '常见上传场景' : '常見上傳情境'}</h2></div><p>{language === 'en' ? 'Open a preconfigured tool for the job you are trying to finish.' : language === 'zh-CN' ? '按你的实际任务进入工具，无需从零设置。' : '依你的實際任務進入工具，無需從零設定。'}</p></div><div className="workflow-grid"><a href="/compress-image-for-email"><strong>For email</strong><span>1 MB starting target</span></a><a href="/convert-image-to-jpg"><strong>Convert image to JPG</strong><span>PNG, WebP, or HEIC to JPG</span></a><a href="/image-converter"><strong>Image converter</strong><span>JPG, PNG, WebP, and HEIC</span></a><a href="/compress-image-to-1mb"><strong>Compress photo to 1MB</strong><span>For uploads and sharing</span></a><a href="/compress-image-for-wordpress"><strong>For WordPress</strong><span>200 KB starting target</span></a><a href="/compress-image-for-job-application"><strong>For job application</strong><span>Resize, crop, compress</span></a><a href="/compress-image-for-online-form"><strong>For online form</strong><span>100 KB starting target</span></a></div></section>
     <section className="privacy wrap" id="privacy"><div className="lock">⌁</div><div><span className="eyebrow"><span /> {t.private}</span><h2>{t.privacyTitle}</h2><p>{t.privacyText}</p></div><div className="stat"><strong>0</strong><span>{t.stored}</span></div></section>
-    <footer className="footer wrap"><a className="brand" href="#top"><span className="brand-mark">T</span>TargetKB</a><p>{t.footer}</p><div className="footer-links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div><span>© 2026 TargetKB</span></footer>
-  </main>;
+    <footer className="footer wrap"><a className="brand" href="#top"><span className="brand-mark">T</span>TargetKB</a><p>{t.footer}</p><div className="footer-links"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></div><span>© 2026 TargetKB</span></footer></>}
+  </Wrapper>;
 }
