@@ -30,7 +30,7 @@ Once consent is accepted, events may wait in a bounded memory queue (maximum 100
 
 Events are best effort: reloads discard pending entries, excess queue entries are dropped, and tag failures do not trigger retries. Repeated flushes do not duplicate events. The helper makes no separate network requests.
 
-In GA4, add event-scoped custom dimensions for `tool_page`, `output_format`, `language`, `trigger` and `error_code` if you want those breakdowns in standard reports. Count `compression_success` and `compression_error` as completed attempts, and compare them with `compression_start`; downloads are clicks, so multiple downloads in one batch can produce multiple events.
+In GA4, add event-scoped custom dimensions for `tool_page`, `output_format`, `language`, `trigger` and `error_code` if you want those breakdowns in standard reports. Validation errors (`invalid_target` and `batch_limit`) occur before `compression_start`; count them separately. For started processing attempts, compare `compression_success` plus processing errors with `compression_start`. Downloads are clicks, so multiple downloads in one batch can produce multiple events. These counts reflect only consenting visitors and are not a count of every site's user.
 
 ## Local verification
 
