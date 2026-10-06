@@ -2,8 +2,11 @@
 
 import { ChangeEvent, DragEvent, useEffect, useRef, useState } from 'react';
 import { trackToolEvent, type ToolEventParams } from '../lib/toolAnalytics';
+import CompressionResult, { type CompressionOutput } from './CompressionResult';
+import { strictDecimalPreset } from '../lib/compressionResult';
+import { encodeCanvas } from '../lib/canvasOutput';
 
-type Result = { url: string; name: string; originalBytes: number; compressedBytes: number; width: number; height: number; format: string; analytics: ToolEventParams };
+type Result = CompressionOutput;
 const presets = [20, 50, 100, 150, 200, 500];
 const displayBytes = (value: number) => value < 1024 * 1024 ? `${Math.max(1, Math.round(value / 1024))} KB` : `${(value / (1024 * 1024)).toFixed(2)} MB`;
 const cleanName = (name: string) => name.replace(/\.[^/.]+$/, '') || 'compressed-image';
@@ -36,6 +39,7 @@ export default function Home({ embedded = false, initialTarget = '100', toolPage
   const [results, setResults] = useState<Result[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const t = copy[language];
+  const strictPreset = strictDecimalPreset(target, unit);
   const maxImagesText = language === 'en' ? 'Max 10 images' : language === 'zh-CN' ? '一次最多 10 张图片' : '一次最多 10 張圖片';
 
   useEffect(() => {
@@ -103,13 +107,13 @@ export default function Home({ embedded = false, initialTarget = '100', toolPage
         if (squareCrop) context.drawImage(image, cropX, cropY, cropSize, cropSize, 0, 0, width, height); else context.drawImage(image, 0, 0, width, height);
         let candidate: Blob | null = null;
         if (outputFormat === 'png') {
-          const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mime));
+          const blob = await encodeCanvas(canvas, mime);
           if (blob && blob.size <= targetBytes) candidate = blob;
         } else {
           let low = 0.08; let high = 0.95;
           for (let attempt = 0; attempt < 9; attempt += 1) {
             const quality = (low + high) / 2;
-            const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mime, quality));
+            const blob = await encodeCanvas(canvas, mime, quality);
             if (!blob) continue;
             if (blob.size <= targetBytes) { candidate = blob; low = quality; } else high = quality;
           }
@@ -117,9 +121,10 @@ export default function Home({ embedded = false, initialTarget = '100', toolPage
         if (candidate) { output = candidate; outputWidth = width; outputHeight = height; } else scale *= 0.72;
       }
       if (!output) throw new Error('target_unreachable');
+      if (output.type !== mime) throw new Error('format_unavailable');
       const resultUrl = URL.createObjectURL(output);
       resultUrls.current.push(resultUrl);
-      return { url: resultUrl, name: `${cleanName(file.name)}-${activeTarget}${activeUnit.toLowerCase()}.${outputFormat}`, originalBytes: file.size, compressedBytes: output.size, width: outputWidth, height: outputHeight, format: outputFormat.toUpperCase(), analytics };
+      return { url: resultUrl, name: `${cleanName(file.name)}-${activeTarget}${activeUnit.toLowerCase()}.${outputFormat}`, originalBytes: file.size, compressedBytes: output.size, originalWidth: image.naturalWidth, originalHeight: image.naturalHeight, width: outputWidth, height: outputHeight, targetBytes, format: outputFormat.toUpperCase(), analytics };
     } finally { URL.revokeObjectURL(sourceUrl); }
   }
 
@@ -141,8 +146,9 @@ export default function Home({ embedded = false, initialTarget = '100', toolPage
       trackToolEvent('compression_success', { ...analytics, processed_count: completed.length });
     } catch (caught) {
       const code = caught instanceof Error ? caught.message : '';
-      const errorCode = code === 'unsupported_file' || code === 'decode_failed' || code === 'canvas_failed' || code === 'target_unreachable' ? code : 'processing_failed';
-      const message = errorCode === 'unsupported_file' ? t.errorFile : errorCode === 'decode_failed' ? t.errorRead : errorCode === 'target_unreachable' ? t.errorReach : t.errorBrowser;
+      const errorCode = code === 'unsupported_file' || code === 'decode_failed' || code === 'canvas_failed' || code === 'target_unreachable' || code === 'format_unavailable' ? code : 'processing_failed';
+      const formatError = language === 'en' ? 'This browser cannot export that format. Try JPG or PNG.' : language === 'zh-CN' ? '此浏览器不支持导出该格式，请尝试 JPG 或 PNG。' : '此瀏覽器不支援匯出該格式，請嘗試 JPG 或 PNG。';
+      const message = errorCode === 'unsupported_file' ? t.errorFile : errorCode === 'decode_failed' ? t.errorRead : errorCode === 'target_unreachable' ? t.errorReach : errorCode === 'format_unavailable' ? formatError : t.errorBrowser;
       setError(message);
       trackToolEvent('compression_error', { ...analytics, error_code: errorCode, processed_count: completed.length });
     } finally { workingRef.current = false; setWorking(false); }
@@ -161,7 +167,8 @@ export default function Home({ embedded = false, initialTarget = '100', toolPage
     {!embedded && <nav className="nav wrap"><a className="brand" href="#top"><span className="brand-mark">T</span>TargetKB</a><div className="nav-links"><a href="#how">{t.navHow}</a><a href="#popular">{t.navPopular}</a><a href="#privacy">{t.navPrivacy}</a></div><select className="language-select" aria-label="Select language" value={language} onChange={(event) => setLanguage(event.target.value as Language)}><option value="en">English</option><option value="zh-CN">简体中文</option><option value="zh-TW">繁體中文</option></select><button className="nav-button" disabled={working} onClick={() => inputRef.current?.click()}>{t.navButton}</button></nav>}
     <section className={embedded ? 'inline-compressor' : 'hero wrap'} id={embedded ? 'compressor' : 'top'}>{!embedded && <><div className="eyebrow"><span /> {t.eyebrow}</div><h1>{t.titleA}<br /><em>{t.titleB}</em></h1><p className="hero-copy">{t.intro}</p></>}
       {embedded && <div className="inline-tool-toolbar"><span>{maxImagesText}</span><select className="language-select" aria-label="Select language" value={language} onChange={(event) => setLanguage(event.target.value as Language)}><option value="en">English</option><option value="zh-CN">简体中文</option><option value="zh-TW">繁體中文</option></select></div>}
-      <section className="compressor" aria-label="Image compressor"><div className="target-row"><div><span className="field-label">{t.targetLabel}</span><strong>{t.targetTitle}</strong></div><label className="target-input"><input aria-label="Target size" value={target} inputMode="decimal" onChange={(event) => setTarget(event.target.value)} /><select aria-label="Size unit" value={unit} onChange={(event) => setUnit(event.target.value as 'KB' | 'MB')}><option>KB</option><option>MB</option></select></label></div>
+      <section className="compressor" aria-label="Image compressor"><fieldset className="compressor-controls" disabled={working}><div className="target-row"><div><span className="field-label">{t.targetLabel}</span><strong>{t.targetTitle}</strong></div><label className="target-input"><input aria-label="Target size" value={target} inputMode="decimal" onChange={(event) => setTarget(event.target.value)} /><select aria-label="Size unit" value={unit} onChange={(event) => setUnit(event.target.value as 'KB' | 'MB')}><option>KB</option><option>MB</option></select></label></div>
+        <div className="size-limit-note"><p>{language === 'en' ? '1 KB = 1,024 bytes. The limit applies to each image.' : language === 'zh-CN' ? '1 KB = 1,024 字节。上限分别应用于每张图片。' : '1 KB = 1,024 位元組。上限分別套用於每張圖片。'} <a href="/guides/image-compression-limits">{language === 'en' ? 'About size limits' : language === 'zh-CN' ? '查看限制说明' : '查看限制說明'}</a></p>{strictPreset && <button disabled={working} onClick={() => selectPreset(strictPreset.target, 'KB')}>{language === 'en' ? `Portal requires under ${strictPreset.byteLimit.toLocaleString('en-US')} bytes? Use ${strictPreset.target} KB` : language === 'zh-CN' ? `网站要求小于 ${strictPreset.byteLimit.toLocaleString('en-US')} 字节？设为 ${strictPreset.target} KB` : `網站要求小於 ${strictPreset.byteLimit.toLocaleString('en-US')} 位元組？設為 ${strictPreset.target} KB`}</button>}</div>
         <button className={`dropzone ${dragging ? 'dragging' : ''}`} disabled={working} onClick={() => inputRef.current?.click()} onDrop={onDrop} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)}><span className="upload-icon">↑</span><span><b>{working ? t.working : t.drop}</b><small>{working ? t.local : `${t.browse} · ${maxImagesText}`}</small></span></button>
         <input ref={inputRef} className="hidden-input" type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={onPick} />
         <section className="resize-panel" aria-label="Resize image options">
@@ -171,8 +178,12 @@ export default function Home({ embedded = false, initialTarget = '100', toolPage
         </section>
         <section className="transform-panel"><label><span>{language === 'en' ? 'Output format' : language === 'zh-CN' ? '输出格式' : '輸出格式'}</span><select aria-label="Output format" value={outputFormat} onChange={(event) => setOutputFormat(event.target.value as 'jpg' | 'png' | 'webp')}><option value="jpg">JPG — best for small files</option><option value="webp">WebP — modern web format</option><option value="png">PNG — lossless, may be larger</option></select></label><label className="crop-toggle"><input type="checkbox" checked={squareCrop} onChange={(event) => setSquareCrop(event.target.checked)} /> {language === 'en' ? 'Center crop to square' : language === 'zh-CN' ? '居中裁剪为方形' : '置中裁剪為方形'}</label></section>
         <div className="popular-row"><span>{t.popular}</span>{presets.map((preset) => <button key={preset} onClick={() => selectPreset(String(preset), 'KB')}>{preset}KB</button>)}<button onClick={() => selectPreset('1', 'MB')}>1MB</button></div>
+        </fieldset>
         {error && <p className="message error" role="alert">{error}</p>}
-        {results.length > 0 && <section className="batch-results"><div className="batch-title"><div className="success-icon">✓</div><div><span className="field-label">{t.ready}</span><strong>{results.length} / {uploadedFiles.length} {language === 'en' ? 'images processed' : language === 'zh-CN' ? '张图片已处理' : '張圖片已處理'}</strong></div></div><section className="upload-fixer"><span className="field-label">Upload Fixer</span><strong>{language === 'en' ? `Your upload was ${displayBytes(originalUploadSize)}. Need a stricter limit?` : language === 'zh-CN' ? `原图共 ${displayBytes(originalUploadSize)}，需要更严格的限制？` : `原圖共 ${displayBytes(originalUploadSize)}，需要更嚴格的限制？`}</strong><p>{language === 'en' ? 'Apply a common requirement and compress this same batch again.' : language === 'zh-CN' ? '一键套用常见要求，并重新压缩这一批图片。' : '一鍵套用常見要求，並重新壓縮這一批圖片。'}</p><div><button disabled={working} onClick={() => applyFix('100', 'KB')}>{language === 'en' ? 'Online form · 100KB' : '在线表单 · 100KB'}</button><button disabled={working} onClick={() => applyFix('200', 'KB')}>{language === 'en' ? 'Website · 200KB' : '网站 · 200KB'}</button><button disabled={working} onClick={() => applyFix('1', 'MB')}>{language === 'en' ? 'Email · 1MB' : '邮件 · 1MB'}</button></div></section>{results.map((result) => <div className="result" key={result.url}><div><h2>{displayBytes(result.originalBytes)} <i>→</i> {displayBytes(result.compressedBytes)}</h2><p>{result.width} × {result.height}px · {result.format}</p></div><a className="download" href={result.url} download={result.name} onClick={() => trackToolEvent('image_download', { ...result.analytics, processed_count: 1 })}>{t.download} <span>↓</span></a></div>)}</section>}
+        {results.length > 0 && <section className="batch-results"><div className="batch-title"><div className="success-icon">✓</div><div><span className="field-label">{language === 'en' ? 'File size checked' : language === 'zh-CN' ? '已检查体积上限' : '已檢查容量上限'}</span><strong>{results.length} / {uploadedFiles.length} {language === 'en' ? 'images processed' : language === 'zh-CN' ? '张图片已处理' : '張圖片已處理'}</strong></div></div>
+          {results.map((result) => <CompressionResult key={result.url} result={result} language={language} onDownload={() => trackToolEvent('image_download', { ...result.analytics, processed_count: 1 })} />)}
+          <section className="upload-fixer"><span className="field-label">Upload Fixer</span><strong>{language === 'en' ? `Your upload was ${displayBytes(originalUploadSize)}. Need a stricter limit?` : language === 'zh-CN' ? `原图共 ${displayBytes(originalUploadSize)}，需要更严格的限制？` : `原圖共 ${displayBytes(originalUploadSize)}，需要更嚴格的限制？`}</strong><p>{language === 'en' ? 'Apply a common requirement and compress this same batch again.' : language === 'zh-CN' ? '一键套用常见要求，并重新压缩这一批图片。' : '一鍵套用常見要求，並重新壓縮這一批圖片。'}</p><div><button disabled={working} onClick={() => applyFix('100', 'KB')}>{language === 'en' ? 'Online form · 100KB' : '在线表单 · 100KB'}</button><button disabled={working} onClick={() => applyFix('200', 'KB')}>{language === 'en' ? 'Website · 200KB' : '网站 · 200KB'}</button><button disabled={working} onClick={() => applyFix('1', 'MB')}>{language === 'en' ? 'Email · 1MB' : '邮件 · 1MB'}</button></div></section>
+        </section>}
       </section><p className="privacy-note">{t.noSignup}</p>
     </section>
     {!embedded && <><section className="proof wrap" id="how">{t.steps.map((step, index) => <div key={step[0]}><span className="number">0{index + 1}</span><h2>{step[0]}</h2><p>{step[1]}</p></div>)}</section>

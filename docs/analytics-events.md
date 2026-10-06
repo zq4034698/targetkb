@@ -18,7 +18,9 @@
 - `processed_count`: integer 0–10; interpretation follows the event table.
 - `language`: `en`, `zh-CN` or `zh-TW`.
 - `trigger` (optional): `upload` or `retry`.
-- `error_code` (optional): `invalid_target`, `batch_limit`, `unsupported_file`, `decode_failed`, `canvas_failed`, `target_unreachable` or `processing_failed`.
+- `error_code` (optional): `invalid_target`, `batch_limit`, `unsupported_file`, `decode_failed`, `canvas_failed`, `format_unavailable`, `target_unreachable` or `processing_failed`.
+
+`format_unavailable` means the browser could not encode the requested output format (including a canvas encoder silently returning another format). The event keeps the requested `output_format` and the number of successfully processed images; it does not record the fallback MIME type or any original/preview image details. An unavailable-format attempt ends in `compression_error`, not `compression_success`.
 
 No file names, file contents, raw errors, user-provided URLs or identifiers are accepted. The helper copies only this parameter allowlist and rejects invalid values even if callers bypass TypeScript.
 

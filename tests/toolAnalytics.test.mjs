@@ -106,6 +106,19 @@ test('revoked consent clears pending activity rather than replaying it on accept
   assert.equal(calls.length, 0);
 });
 
+test('unavailable output formats emit a safe category without fallback or preview details', async (t) => {
+  const { analytics, calls } = await setup(t);
+  const errorParams = {
+    ...defaults, output_format: 'webp', processed_count: 1, error_code: 'format_unavailable',
+    actual_mime: 'image/png', original_url: 'blob:private-original', preview_url: 'blob:private-preview',
+  };
+  analytics.trackToolEvent('compression_error', errorParams);
+  analytics.flushToolEvents();
+  assert.deepEqual(calls, [['event', 'compression_error', {
+    ...defaults, output_format: 'webp', processed_count: 1, error_code: 'format_unavailable',
+  }]]);
+});
+
 test('invalid-target failures record only the category, never the invalid input', async (t) => {
   const { analytics, calls } = await setup(t);
   analytics.flushToolEvents();

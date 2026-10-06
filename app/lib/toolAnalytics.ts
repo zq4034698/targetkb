@@ -8,6 +8,7 @@ export type ToolErrorCode =
   | 'unsupported_file'
   | 'decode_failed'
   | 'canvas_failed'
+  | 'format_unavailable'
   | 'target_unreachable'
   | 'processing_failed';
 
@@ -27,7 +28,7 @@ type AnalyticsWindow = Window & {
 };
 
 const eventNames: readonly ToolEventName[] = ['compression_start', 'compression_success', 'compression_error', 'image_download'];
-const errorCodes: readonly ToolErrorCode[] = ['invalid_target', 'batch_limit', 'unsupported_file', 'decode_failed', 'canvas_failed', 'target_unreachable', 'processing_failed'];
+const errorCodes: readonly ToolErrorCode[] = ['invalid_target', 'batch_limit', 'unsupported_file', 'decode_failed', 'canvas_failed', 'format_unavailable', 'target_unreachable', 'processing_failed'];
 const pending: Array<{ name: ToolEventName; params: ToolEventParams }> = [];
 const maxPending = 100;
 let ready = false;
