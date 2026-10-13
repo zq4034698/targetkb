@@ -17,6 +17,9 @@ export const metadata: Metadata = {
   title: 'TargetKB — Compress Images to Any Size',
   description: 'Compress JPG, PNG, WebP and HEIC images to any KB or MB limit. Private, precise, and ready to upload.',
   metadataBase: new URL('https://targetkb.com'),
+  verification: {
+    other: { 'msvalidate.01': 'E12C51436C036AF103B9C123126FCB66' },
+  },
   openGraph: {
     title: 'TargetKB — Compress Images to Any Size',
     description: 'Compress images to any KB or MB limit. Private, precise, and ready to upload.',
