@@ -13,7 +13,7 @@ export type ToolErrorCode =
   | 'processing_failed';
 
 export type ToolEventParams = {
-  tool_page: 'home' | '100kb' | '200kb';
+  tool_page: 'home' | '50kb' | '100kb' | '150kb' | '200kb' | '500kb' | '1mb';
   target_kb?: number;
   output_format: 'jpg' | 'png' | 'webp';
   file_count: number;
@@ -48,7 +48,7 @@ function clearPending(): void {
 
 function sanitizeParams(name: ToolEventName, params: ToolEventParams): ToolEventParams | undefined {
   const invalidTargetError = name === 'compression_error' && params?.error_code === 'invalid_target';
-  if (!params || !['home', '100kb', '200kb'].includes(params.tool_page)
+  if (!params || !['home', '50kb', '100kb', '150kb', '200kb', '500kb', '1mb'].includes(params.tool_page)
     || (!invalidTargetError && (typeof params.target_kb !== 'number' || !Number.isFinite(params.target_kb) || params.target_kb <= 0))
     || !['jpg', 'png', 'webp'].includes(params.output_format)
     || !Number.isInteger(params.file_count) || params.file_count < 1 || params.file_count > 10

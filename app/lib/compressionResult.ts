@@ -19,9 +19,11 @@ export function summarizeCompression(result: CompressionMeasurements) {
 }
 
 export function strictDecimalPreset(target: string, unit: 'KB' | 'MB') {
-  if (unit !== 'KB') return null;
   // Only offer these when the user explicitly needs a decimal byte limit.
-  if (Number(target) === 100) return { target: '97', byteLimit: 100_000 };
-  if (Number(target) === 200) return { target: '195', byteLimit: 200_000 };
+  const value = Number(target);
+  if ((unit === 'KB' && [50, 100, 150, 200, 500].includes(value)) || (unit === 'MB' && value === 1)) {
+    const byteLimit = value * (unit === 'MB' ? 1_000_000 : 1_000);
+    return { target: String(Math.floor((byteLimit - 1) / 1024)), byteLimit };
+  }
   return null;
 }

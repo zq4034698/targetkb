@@ -5,6 +5,11 @@
 .inline-tool-toolbar { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; color:var(--muted); font-size:12px; font-weight:700; }
 .inline-tool-toolbar .language-select { margin-right:0; }
 .inline-compressor .privacy-note { text-align:center; }
+.seo-related { width:min(760px,calc(100% - 40px)); margin:0 auto 54px; }
+.seo-related h2 { font-size:24px; letter-spacing:-.8px; }
+.seo-related p { color:var(--muted); font-size:14px; line-height:1.6; }
+.seo-related nav { display:flex; flex-wrap:wrap; gap:10px; }
+.seo-related a { padding:10px 13px; border:1px solid var(--line); border-radius:9px; background:white; color:var(--pine); font-size:13px; font-weight:700; text-decoration:none; }
 .dropzone:disabled { cursor:wait; opacity:.75; }
 .compressor-controls { min-width:0; margin:0; padding:0; border:0; }
 .size-limit-note { margin:-5px 2px 15px; color:#65736b; font-size:11px; line-height:1.6; }

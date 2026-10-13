@@ -18,15 +18,15 @@ const copy = {
 } as const;
 type Language = keyof typeof copy;
 
-type HomeCompressorProps = { embedded?: boolean; initialTarget?: string; toolPage?: 'home' | '100kb' | '200kb' };
+type HomeCompressorProps = { embedded?: boolean; initialTarget?: string; initialUnit?: 'KB' | 'MB'; toolPage?: ToolEventParams['tool_page'] };
 
-export default function Home({ embedded = false, initialTarget = '100', toolPage = 'home' }: HomeCompressorProps) {
+export default function Home({ embedded = false, initialTarget = '100', initialUnit = 'KB', toolPage = 'home' }: HomeCompressorProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const workingRef = useRef(false);
   const resultUrls = useRef<string[]>([]);
   const [language, setLanguage] = useState<Language>('en');
   const [target, setTarget] = useState(initialTarget);
-  const [unit, setUnit] = useState<'KB' | 'MB'>('KB');
+  const [unit, setUnit] = useState<'KB' | 'MB'>(initialUnit);
   const [resizeEnabled, setResizeEnabled] = useState(false);
   const [resizeWidth, setResizeWidth] = useState('');
   const [resizeHeight, setResizeHeight] = useState('');

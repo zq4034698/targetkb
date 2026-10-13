@@ -63,6 +63,15 @@ test('accepted activity waits for explicit initialization and flushes once in or
   assert.equal(calls.length, 3);
 });
 
+test('inline compressors retain their actual entry page', async (t) => {
+  const { analytics, calls } = await setup(t);
+  analytics.flushToolEvents();
+  for (const tool_page of ['50kb', '100kb', '150kb', '200kb', '500kb', '1mb']) {
+    analytics.trackToolEvent('compression_start', { ...defaults, tool_page });
+  }
+  assert.deepEqual(calls.map(call => call[2].tool_page), ['50kb', '100kb', '150kb', '200kb', '500kb', '1mb']);
+});
+
 test('accepted queue tolerates missing gtag and keeps only a safe snapshot', async (t) => {
   const { analytics, browser, calls } = await setup(t);
   delete browser.gtag;

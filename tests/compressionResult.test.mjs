@@ -27,14 +27,20 @@ test('does not claim savings when conversion makes a file larger', () => {
 });
 
 test('strict portal presets fit explicit decimal byte limits', () => {
-  for (const target of ['100', '200']) {
+  for (const target of ['50', '100', '150', '200', '500']) {
     const preset = strictDecimalPreset(target, 'KB');
     assert.ok(Number(preset.target) * 1024 < preset.byteLimit);
   }
   assert.deepEqual(strictDecimalPreset('100', 'KB'), { target: '97', byteLimit: 100000 });
   assert.deepEqual(strictDecimalPreset('200', 'KB'), { target: '195', byteLimit: 200000 });
   assert.equal(strictDecimalPreset('100', 'MB'), null);
-  assert.equal(strictDecimalPreset('500', 'KB'), null);
+  assert.deepEqual(strictDecimalPreset('50', 'KB'), { target: '48', byteLimit: 50000 });
+  assert.deepEqual(strictDecimalPreset('150', 'KB'), { target: '146', byteLimit: 150000 });
+  assert.deepEqual(strictDecimalPreset('500', 'KB'), { target: '488', byteLimit: 500000 });
+  assert.deepEqual(strictDecimalPreset('1', 'MB'), { target: '976', byteLimit: 1000000 });
+  assert.ok(Number(strictDecimalPreset('1', 'MB').target) * 1024 < 1000000);
+  assert.equal(strictDecimalPreset('97', 'KB'), null);
+  assert.equal(strictDecimalPreset('0', 'MB'), null);
   assert.equal(strictDecimalPreset('invalid', 'KB'), null);
 });
 
