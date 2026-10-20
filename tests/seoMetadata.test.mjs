@@ -32,3 +32,13 @@ test('IndexNow only builds explicit canonical pages and verifies a plain-text ke
   }
   await assert.rejects(makeSubmission(Array.from({length:101}, (_, i) => `/page-${i}`)));
 });
+
+test('JPG conversion pages keep a usable inline tool and distinct analytics labels', async () => {
+  for (const [route, label] of [['convert-image-to-jpg', 'image-to-jpg'], ['convert-png-to-jpg', 'png-to-jpg'], ['convert-heic-to-jpg', 'heic-to-jpg']]) {
+    const page = await readFile(new URL(`../app/${route}/page.tsx`, import.meta.url), 'utf8');
+    assert.ok(page.includes(`inlineToolPage="${label}"`), route);
+    assert.ok(page.includes('toolHref="/?format=jpg&target=1mb"'), route);
+  }
+  const landing = await readFile(new URL('../app/components/TransformLanding.tsx', import.meta.url), 'utf8');
+  assert.ok(landing.includes('initialTarget="1" initialUnit="MB"'));
+});

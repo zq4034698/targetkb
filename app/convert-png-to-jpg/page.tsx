@@ -9,14 +9,15 @@ export const metadata: Metadata = {
 
 export default function Page() {
   return <TransformLanding
+    inlineToolPage="png-to-jpg"
     title="Convert PNG to JPG — free online"
-    description="Turn PNG files into upload-ready JPGs in your browser. Start with a clear 1MB JPG, or choose an exact limit when a form requires a smaller file."
+    description="Convert PNG files to JPG directly on this page with a 1MB limit preselected. Transparent areas become white. Choose your upload limit before selecting files; tight limits may reduce detail or dimensions."
     toolHref="/?format=jpg&target=1mb"
     ctaLabel="Convert PNG to JPG"
     steps={[
-      'Open the converter with JPG already selected as the output format.',
+      'JPG output and a 1MB limit (1,048,576 bytes) are already selected. Adjust the limit before uploading if needed.',
       'Choose one PNG image or upload up to 10 PNG files.',
-      'Download your JPG files, or choose a stricter KB or MB limit before exporting.',
+      'Download each JPG and check the file size, dimensions and detail. Keep the PNG original if transparency matters.',
     ]}
     faq="Does converting PNG to JPG remove transparency?"
     faqAnswer="Yes. JPG does not support transparency, so transparent PNG areas are exported on a white background. Keep the PNG if you need the transparent version."

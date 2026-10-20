@@ -11,7 +11,7 @@
 
 ## Allowed parameters
 
-- `tool_page`: `home`, `50kb`, `100kb`, `150kb`, `200kb`, `500kb` or `1mb`; identifies the tool entry page, not an arbitrary URL.
+- `tool_page`: `home`, `50kb`, `100kb`, `150kb`, `200kb`, `500kb`, `1mb`, `image-to-jpg`, `png-to-jpg` or `heic-to-jpg`; identifies the tool entry page, not an arbitrary URL.
 - `target_kb`: a finite positive number; omitted for `invalid_target` failures instead of recording invalid input.
 - `output_format`: `jpg`, `png` or `webp`.
 - `file_count`: integer 1–10; selected batch count, capped at 10 for `batch_limit` validation errors. A download retains its batch context.
