@@ -42,3 +42,13 @@ test('JPG conversion pages keep a usable inline tool and distinct analytics labe
   const landing = await readFile(new URL('../app/components/TransformLanding.tsx', import.meta.url), 'utf8');
   assert.ok(landing.includes('initialTarget="1" initialUnit="MB"'));
 });
+
+test('JPG guide links to existing tools and explains conversion limits', async () => {
+  const guide = await readFile(new URL('../app/guides/how-to-convert-image-to-jpg/page.tsx', import.meta.url), 'utf8');
+  for (const [, href] of guide.matchAll(/href="(\/[^"#]*)(?:#[^"]*)?"/g)) {
+    await readFile(new URL(`../app${href}/page.tsx`, import.meta.url), 'utf8');
+  }
+  for (const text of ['does not convert the image data', '1,048,576 bytes', 'PDF documents are not supported', 'does not guarantee a smaller file']) {
+    assert.ok(guide.includes(text), text);
+  }
+});
