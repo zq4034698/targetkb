@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 
 export default function Page() {
   return <GuideArticle
+    toolHref="/convert-image-to-jpg#compressor"
     label="JPG conversion guide"
     title="How to convert an image to JPG"
     intro="JPG is a widely accepted format for photographs, online forms, email attachments, and many website uploads. Converting an image to JPG can also make it much easier to meet a strict file-size limit."
